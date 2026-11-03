@@ -1,0 +1,12 @@
+{
+  "name": "plandoosee-diary",
+  "version": "1.0.0",
+  "private": true,
+  "description": "플랜두씨 다이어리 — 계획(Plan) · 실제로 한 일(Do) · 돌아보기(See)",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js",
+    "test": "node --test test/"
+  }
+}

@@ -1,0 +1,585 @@
+{
+  "schema": "pds-schema-v2",
+  "app": "plandoosee-diary",
+  "database": "SQLite (서버 파일 DB, node:sqlite)",
+  "date_rules": {
+    "timezone": "Asia/Seoul",
+    "calendar_date": "due_date·start_date·end_date는 'YYYY-MM-DD' 글자이며 서울 달력 날짜다. 시간대 변환을 하지 않는다.",
+    "timestamp": "created_at·updated_at·started_at·ended_at·completed_at 등은 UTC ISO-8601('...Z')로 저장하고 화면에서만 서울 시각으로 바꿔 보여 준다. 서울 입력('YYYY-MM-DDTHH:mm')은 +09:00으로 간주해 UTC로 바꿔 저장한다.",
+    "overdue": "지연 = status<>'done' AND due_date < 오늘(서울 달력 날짜). 완료한 할 일은 지연으로 세지 않는다.",
+    "today": "서버가 Asia/Seoul 기준으로 계산한다 (UTC+9, 서머타임 없음)."
+  },
+  "units": {
+    "time": "모든 시간 양은 분(minutes) 정수. estimated_minutes, actual_minutes, 돌아보기 합계 모두 같다.",
+    "priority": "1 높음 · 2 보통 · 3 낮음 (정렬은 작은 수가 먼저)"
+  },
+  "review_rules": {
+    "plan_count": "대상 범위의 지우지 않은 할 일 수",
+    "done_count": "그중 status='done'",
+    "overdue_count": "그중 지연(위 정의)",
+    "blocked_count": "그중 blocked_reason이 공백이 아닌 실행 기록이 하나라도 있는 할 일 수",
+    "estimated_minutes": "대상 할 일 estimated_minutes 합계 (없으면 0)",
+    "actual_minutes": "대상 할 일에 붙은 runs.actual_minutes 합계 (없으면 0)",
+    "diff_minutes": "actual_minutes − estimated_minutes",
+    "period": "기간 필터는 할 일 due_date 기준(양 끝 포함)"
+  },
+  "sort_rules": {
+    "tie_break": "due_date 빠른 순(없음은 뒤) → priority 높은 순 → id 작은 순",
+    "keys": [
+      "due",
+      "priority",
+      "estimate",
+      "created",
+      "title"
+    ]
+  },
+  "tables": {
+    "completions": {
+      "description": "완료 기록. 되돌리지 않은(reverted_at IS NULL) 기록은 할 일당 1건만 가능(부분 유일 인덱스).",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": true,
+          "default": null
+        },
+        {
+          "name": "task_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "idempotency_key",
+          "type": "TEXT",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "completed_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "reverted_at",
+          "type": "TEXT",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "task_id",
+          "references": "tasks.id"
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX uq_completions_active ON completions(task_id) WHERE reverted_at IS NULL"
+      ]
+    },
+    "plan_revisions": {
+      "description": "계획 수정 이력. rev_no 1이 처음 세운 계획, 이후는 고칠 때마다 한 줄씩 추가(지우거나 덮어쓰지 않음).",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": true,
+          "default": null
+        },
+        {
+          "name": "plan_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "rev_no",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "goal",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "start_date",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "end_date",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "priority",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "success_criteria",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "estimated_minutes",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "change_note",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": "''"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "plan_id",
+          "references": "plans.id"
+        }
+      ],
+      "indexes": []
+    },
+    "plans": {
+      "description": "계획. 현재 값만 들고 있다. 처음 값과 모든 수정본은 plan_revisions에 남는다.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": true,
+          "default": null
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "goal",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": "''"
+        },
+        {
+          "name": "start_date",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "end_date",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "priority",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "success_criteria",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "estimated_minutes",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "carried_from_plan_id",
+          "type": "INTEGER",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "carried_text",
+          "type": "TEXT",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "carried_from_plan_id",
+          "references": "plans.id"
+        }
+      ],
+      "indexes": []
+    },
+    "review_carryovers": {
+      "description": "돌아보기에서 정한 고칠 점 한 건이 넘어간 다음 계획. 원래 계획당 1건(UNIQUE).",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": true,
+          "default": null
+        },
+        {
+          "name": "from_plan_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "to_plan_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "text",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "to_plan_id",
+          "references": "plans.id"
+        },
+        {
+          "column": "from_plan_id",
+          "references": "plans.id"
+        }
+      ],
+      "indexes": []
+    },
+    "review_snapshots": {
+      "description": "저장한 돌아보기 집계(저장 시점의 값).",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": true,
+          "default": null
+        },
+        {
+          "name": "plan_id",
+          "type": "INTEGER",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "from_date",
+          "type": "TEXT",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "to_date",
+          "type": "TEXT",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "today",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "metrics_json",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "plan_id",
+          "references": "plans.id"
+        }
+      ],
+      "indexes": []
+    },
+    "runs": {
+      "description": "실행 기록. 계획·할 일 값과 별도 표이며 tasks를 수정하지 않는다. 같은 Idempotency-Key는 한 건만 저장된다.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": true,
+          "default": null
+        },
+        {
+          "name": "task_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "started_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "ended_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "actual_minutes",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "blocked_reason",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": "''"
+        },
+        {
+          "name": "idempotency_key",
+          "type": "TEXT",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "task_id",
+          "references": "tasks.id"
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_runs_task ON runs(task_id)"
+      ]
+    },
+    "task_tags": {
+      "description": "할 일의 태그(할 일 하나에 여러 개).",
+      "columns": [
+        {
+          "name": "task_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": true,
+          "default": null
+        },
+        {
+          "name": "tag",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "task_id",
+          "references": "tasks.id"
+        }
+      ],
+      "indexes": []
+    },
+    "tasks": {
+      "description": "계획에 딸린 할 일. 삭제는 deleted_at 표시(소프트 삭제)이며 집계에서 제외된다.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": true,
+          "default": null
+        },
+        {
+          "name": "plan_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "note",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": "''"
+        },
+        {
+          "name": "due_date",
+          "type": "TEXT",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "priority",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "estimated_minutes",
+          "type": "INTEGER",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": "'open'"
+        },
+        {
+          "name": "completed_at",
+          "type": "TEXT",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "deleted_at",
+          "type": "TEXT",
+          "not_null": false,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "not_null": true,
+          "primary_key": false,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "plan_id",
+          "references": "plans.id"
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_tasks_plan ON tasks(plan_id)"
+      ]
+    }
+  }
+}

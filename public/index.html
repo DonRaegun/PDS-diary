@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>플랜두씨 다이어리</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1><a href="#/">플랜두씨 다이어리</a></h1>
+  <nav>
+    <a href="#/" data-nav="home">계획</a>
+    <a href="#/tasks" data-nav="tasks">할 일</a>
+    <a href="#/runs" data-nav="runs">실행 기록</a>
+    <a href="#/review" data-nav="review">돌아보기</a>
+    <a href="/api/export" id="export" download>내보내기(JSON)</a>
+  </nav>
+</header>
+<p id="notice" role="note">지금은 로그인이 없어 링크를 아는 사람은 누구나 볼 수 있습니다. 남이 봐도 괜찮은 내용만 넣으세요</p>
+<div id="toast" role="status" aria-live="polite"></div>
+<main id="app">불러오는 중…</main>
+<footer>시간은 모두 서울(Asia/Seoul) 기준, 시간 양은 분 단위로 저장·표시합니다.</footer>
+<script src="app.js"></script>
+</body>
+</html>
