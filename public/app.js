@@ -197,32 +197,34 @@ views.tasks = async (parts, q) => {
     h('h2', {}, `할 일 (${data.tasks.length}개)`),
     h('div', { class: 'card' }, filter, chips.length ? h('div', { class: 'small mt' }, '추가 조건: ', chips.join(' · '), ' ', link('#/tasks', '조건 풀기')) : null),
     h('div', { class: 'sortnote small' }, h('b', {}, '현재 정렬: '), data.sort.label, h('br'), `지연 기준일: 오늘(서울) ${data.today}. 거르기·정렬은 서버(DB)에서 합니다.`),
-    data.tasks.length ? h('div', { class: 'table-wrap' }, h('table', {},
-      h('thead', {}, h('tr', {}, ['ID', '할 일', '계획', '마감일', '우선순위', '태그', '예상', '실제', '상태', '동작'].map((t) => h('th', {}, t)))),
-      h('tbody', {}, data.tasks.map(taskRows)))) : h('p', { class: 'muted' }, '조건에 맞는 할 일이 없습니다.'),
+    data.tasks.length ? h('div', { class: 'tasklist' }, data.tasks.map(taskRows))
+    : h('p', { class: 'muted' }, '조건에 맞는 할 일이 없습니다.'),
     h('h2', {}, '새 할 일'), h('div', { class: 'card' }, addForm));
 };
 
 function taskRows(t) {
-  const detail = h('tr', { hidden: true, id: 'detail-' + t.id }, h('td', { colspan: 10 }));
+  const detail = h('div', { class: 'task-detail', hidden: true, id: 'detail-' + t.id });
   const toggle = (mode) => {
     if (!detail.hidden && detail.dataset.mode === mode) { detail.hidden = true; return; }
     detail.hidden = false; detail.dataset.mode = mode;
-    detail.firstChild.replaceChildren(mode === 'edit' ? taskEditForm(t) : runPanel(t));
+    detail.replaceChildren(mode === 'edit' ? taskEditForm(t) : runPanel(t));
   };
   const key = keyFor('c', t.id);
-  const row = h('tr', { id: 'task-' + t.id },
-    h('td', {}, 'T-' + t.id),
-    h('td', {}, h('span', { class: t.status === 'done' ? 'done-title' : '' }, t.title), t.note ? h('div', { class: 'small muted' }, t.note) : null),
-    h('td', {}, link('#/plan/' + t.plan_id, 'PLAN-' + t.plan_id)),
-    h('td', {}, t.due_date || '-', ' ', t.overdue ? h('span', { class: 'badge late' }, '지연') : null),
-    h('td', {}, PRI[t.priority]),
-    h('td', {}, t.tags.map((g) => h('span', { class: 'tag' }, g))),
-    h('td', {}, fmtMin(t.estimated_minutes)),
-    h('td', {}, t.run_count ? fmtMin(t.actual_minutes) : '-', h('div', { class: 'small muted' }, link(`#/runs?task_id=${t.id}`, `기록 ${t.run_count}건`))),
-    h('td', {}, t.status === 'done' ? h('span', { class: 'badge done' }, '완료') : '진행 중', t.blocked_count ? h('div', { class: 'small err' }, '막힘 ' + t.blocked_count) : null),
-    h('td', {}, h('div', { class: 'row' },
-      t.status === 'done'
+  const done = t.status === 'done';
+  return h('div', { class: 'task' + (done ? ' is-done' : ''), id: 'task-' + t.id },
+    h('div', { class: 'task-main' },
+      h('div', { class: 't-title' }, h('span', { class: done ? 'done-title' : '' }, t.title), done ? h('span', { class: 'badge done' }, '완료') : null, t.overdue ? h('span', { class: 'badge late' }, '지연') : null, t.blocked_count ? h('span', { class: 'badge late' }, '막힘 ' + t.blocked_count) : null),
+      t.note ? h('div', { class: 'small muted' }, t.note) : null,
+      h('div', { class: 't-meta' },
+        h('span', {}, 'T-' + t.id), link('#/plan/' + t.plan_id, 'PLAN-' + t.plan_id),
+        h('span', {}, '마감 ' + (t.due_date || '없음')), h('span', { class: 'pri pri-' + t.priority }, '우선순위 ' + PRI[t.priority]),
+        t.tags.map((g) => h('span', { class: 'tag' }, g)))),
+    h('div', { class: 'task-nums' },
+      h('div', {}, h('span', { class: 'muted small' }, '예상 '), fmtMin(t.estimated_minutes)),
+      h('div', {}, h('span', { class: 'muted small' }, '실제 '), t.run_count ? fmtMin(t.actual_minutes) : '-'),
+      h('div', { class: 'small' }, link(`#/runs?task_id=${t.id}`, `기록 ${t.run_count}건`))),
+    h('div', { class: 'task-actions' },
+      done
         ? h('button', { class: 'ghost', onclick: guard(async () => { await api('POST', `/api/tasks/${t.id}/reopen`); pendingKeys.delete('c' + t.id); toast('진행 중으로 되돌렸습니다'); render(); }) }, '되돌리기')
         : h('button', { onclick: guard(async () => {
           const r = await api('POST', `/api/tasks/${t.id}/complete`, null, { 'Idempotency-Key': key });
@@ -230,8 +232,8 @@ function taskRows(t) {
         }) }, '완료'),
       h('button', { class: 'ghost', onclick: () => toggle('edit') }, '고치기'),
       h('button', { class: 'ghost', onclick: () => toggle('run') }, '실행 기록'),
-      h('button', { class: 'danger', onclick: guard(async () => { if (!confirm(`「${t.title}」을(를) 지울까요?`)) return; await api('DELETE', '/api/tasks/' + t.id); toast('지웠습니다'); render(); }) }, '지우기'))));
-  return [row, detail];
+      h('button', { class: 'danger', onclick: guard(async () => { if (!confirm(`「${t.title}」을(를) 지울까요?`)) return; await api('DELETE', '/api/tasks/' + t.id); toast('지웠습니다'); render(); }) }, '지우기')),
+    detail);
 }
 
 function taskEditForm(t) {
